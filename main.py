@@ -1,9 +1,10 @@
 import re
+
 import rstr
 
-from xsdDocument import XsdDocument
-from xmlElement import XmlElement
 from DataStructure import DataStructure
+from xmlElement import XmlElement
+from xsdDocument import XsdDocument
 
 
 def generate_data_structure(xsd_doc):
@@ -14,7 +15,7 @@ def generate_data_structure(xsd_doc):
     if not root_node_is_valid(root_node):
         return None
 
-    print get_event_info(root_node)
+    info = get_event_info(root_node)
 
     children_nodes = root_node.get_children_nodes()
 
@@ -23,9 +24,14 @@ def generate_data_structure(xsd_doc):
         if tag() == 'element':
             ds = parse_element(node, None)
         elif tag() == 'complexType':
-            ds.append_child(parse_complex_type(node, None))
+            ds.append_type_ref(parse_complex_type(node, None))
         else:
             print 'tag ' + tag() + " nao tratada"
+
+    ds.name = info[0]
+    ds.version = info[1]
+
+    ds.resolve_type_references(ds.get_types())
 
     return ds
 
@@ -37,6 +43,7 @@ def parse_element(element, parent):
     ds.xml_name = element.get_attribute_by_name('name')
     if ds.xml_name == '':
         ds.xml_name = element.get_attribute_by_name('ref')
+    ds.var_name = camel_case_to_underscore(ds.xml_name)
     ds.min_occurs = get_occurs(element.get_attribute_by_name('minOccurs'))
     ds.max_occurs = get_occurs(element.get_attribute_by_name('maxOccurs'))
     ds.data_type = element.get_attribute_by_name('type')
@@ -63,8 +70,9 @@ def parse_complex_type(element, ds):
     if ds is None:
         ds = DataStructure()
         ds.xml_name = element.get_attribute_by_name('name')
+        ds.var_name = camel_case_to_underscore(ds.xml_name)
 
-    ds.xml_type = 'S'
+    ds.xml_type = 'G'
 
     children_nodes = element.get_children_nodes()
 
@@ -85,6 +93,8 @@ def parse_attribute(element, ds):
 
     attr_ds.xml_type = 'A'
     attr_ds.xml_name = element.get_attribute_by_name('name')
+    attr_ds.var_name = camel_case_to_underscore(attr_ds.xml_name)
+    ds.var_name = camel_case_to_underscore(ds.xml_name)
     if element.get_attribute_by_name('use') == 'required':
         attr_ds.min_occurs = 1
         attr_ds.max_occurs = 1
@@ -221,10 +231,21 @@ def get_occurs(value):
         return int(value)
 
 
+def camel_case_to_underscore(text):
+    underscore = ''.join(map(lambda x: x if x.islower() else "_" + x, text))
+    underscore = underscore.upper()
+    if underscore.endswith('_C_R_P_B'):
+        underscore = underscore.replace('_C_R_P_B', '_CRPB')
+    if underscore[0] == '_':
+        underscore = underscore[1:]
+    return underscore
+
+
 def main():
     xsd = XsdDocument('XSD/1.0/evtInfoContri.xsd')
     ds = generate_data_structure(xsd)
-    print ''
+
+    ds.write_method_file()
 
 
 if __name__ == '__main__':

@@ -232,20 +232,46 @@ def get_occurs(value):
 
 
 def camel_case_to_underscore(text):
-    underscore = ''.join(map(lambda x: x if x.islower() else "_" + x, text))
-    underscore = underscore.upper()
-    if underscore.endswith('_C_R_P_B'):
-        underscore = underscore.replace('_C_R_P_B', '_CRPB')
-    if underscore[0] == '_':
-        underscore = underscore[1:]
-    return underscore
+    l = map(lambda x: x if x.islower() else "_" + x, text)
+
+    underscore = [l[0]]
+
+    for i in range(1, len(l) - 1):
+        if l[i].startswith('_') and l[i - 1].startswith('_') and l[i + 1].isupper():
+            underscore.append(l[i].replace('_', ''))
+        else:
+            underscore.append(l[i])
+
+    last = l[len(l) - 1]
+    if last.startswith('_'):
+        last = last[1:]
+
+    underscore.append(last)
+
+    value = ''.join(underscore).upper()
+    if value.startswith('_'):
+        value = value[1:]
+
+    return value
+
+    #
+    # underscore = ''.join(map(lambda x: x if x.islower() else "_" + x, text))
+    # underscore = underscore.upper()
+    # if underscore.endswith('_C_R_P_B') or underscore.endswith('_P_J'):
+    #     underscore = underscore.replace('_C_R_P_B', '_CRPB')
+    # if underscore[0] == '_':
+    #     underscore = underscore[1:]
+    # return underscore
 
 
 def main():
     xsd = XsdDocument('XSD/1.0/evtInfoContri.xsd')
+
     ds = generate_data_structure(xsd)
 
     ds.write_method_file()
+
+    ds.write_ddic_gen_file(None)
 
 
 if __name__ == '__main__':

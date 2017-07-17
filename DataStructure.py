@@ -19,7 +19,7 @@ class DataStructure:
 
     def get_children_nodes(self):
         # type: () -> [DataStructure]
-        return self._types
+        return self._children
 
     def get_types(self):
         # type: () -> [DataStructure]
@@ -118,6 +118,98 @@ class DataStructure:
         if level == -1:
             f.write('ENDMETHOD.\n')
 
+    def write_ddic_gen_file(self, f=None, level=-1):
+        # type: (file) -> ()
+
+        path = ''
+
+        if level == -1:
+            path = 'output/dg_' + self.name + '_' + self.version + '.abap'
+            f = open(path, 'w')
+
+        result = True
+
+        report_name = path.replace('output/', '')
+        report_name = report_name.replace('.abap', '')
+
+        tab_name = 'ZPY_' + self.var_name
+
+        for node in self._children:
+            result = result and (len(node.get_children_nodes()) == 0)
+
+        if level == -1:
+            f.write('REPORT ' + report_name + '.\n')
+            f.write('DATA: xdd02v TYPE dd02v.\n')
+            f.write('DATA: idd03p TYPE TABLE OF dd03p WITH HEADER LINE.\n')
+            f.write('START-OF-SELECTION.\n\n')
+
+        if result is False:
+            for node in self._children:
+                node.write_ddic_gen_file(f, level + 1)
+
+        f.write('CLEAR xdd02v.\n')
+        f.write('xdd02v-tabname = ' + tab_name + '.\n')
+        f.write('xdd02v-tabclass = INTTAB.\n')
+        f.write('xdd02v-ddlanguage = sy-langu.\n')
+        f.write('xdd02v-langdep = sy-langu.\n')
+        f.write('xdd02v-ddtext  = PyGen.\n\n')
+
+        i = 1
+        for node in self._children:
+            f.write('CLEAR idd03p.\n')
+            f.write('idd03p-tabname  = ' + tab_name + '.\n')
+            f.write('idd03p-fieldname = \'' + node.var_name + '\'.\n')
+            f.write('idd03p-rollname = ' + node.get_ddic_type() + '.\n')
+            f.write('idd03p-position = ' + str(i) + '.\n')
+            f.write('APPEND idd03p.\n\n')
+            i += 1
+
+        f.write('CALL FUNCTION \'DDIF_TABL_PUT\'\n'
+                '    EXPORTING\n'
+                '       name             = ' + tab_name + '\n'
+                                                          '      dd02v_wa          = xdd02v\n'
+                                                          '    TABLES\n'
+                                                          '      dd03p_tab         = idd03p\n'
+                                                          '    EXCEPTIONS\n'
+                                                          '      tabl_not_found    = 1\n'
+                                                          '      name_inconsistent = 2\n'
+                                                          '      tabl_inconsistent = 3\n'
+                                                          '      put_failure       = 4\n'
+                                                          '      put_refused       = 5\n'
+                                                          '      OTHERS            = 6.\n'
+                                                          '\n'
+                                                          '  IF sy-subrc <> 0.\n'
+                                                          '    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno\n'
+                                                          '            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.\n'
+                                                          '  ENDIF.\n'
+                                                          '  CALL FUNCTION \'DDIF_TABL_ACTIVATE\'\n'
+                                                          '    EXPORTING\n'
+                                                          '      name        = ' + tab_name + '\n'
+                                                                                              '    EXCEPTIONS\n'
+                                                                                              '      not_found   = 1\n'
+                                                                                              '      put_failure = 2\n'
+                                                                                              '      OTHERS      = 3.\n'
+                                                                                              '  IF sy-subrc <> 0.\n'
+                                                                                              '    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno\n'
+                                                                                              '            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.\n'
+                                                                                              '  ENDIF.\n\n')
+
+    def get_ddic_type(self):
+        # type: (str) -> str
+
+        if self.data_type == 'ACCP':
+            return 'Z_REINF_PERIODO'
+        elif self.data_type == 'STRG':
+            return 'Z_REINF_TEXTO'
+        elif self.data_type == 'NUMC':
+            return 'Z_REINF_NUMERO'
+        elif self.data_type == 'DEC':
+            return 'Z_REINF_VALOR'
+        elif self.data_type == 'DATS':
+            return 'Z_REINF_DATA'
+        else:
+            return '?'
+
 #
 # class DataDescription:
 #     def __init__(self):
@@ -128,4 +220,3 @@ class DataStructure:
 #   DEC     Valor Decimal
 #   ACCP    Periodo YYYY-MM
 #   DATS    Data    YYYY-MM-DD
-#   STRUCT  Estrutura

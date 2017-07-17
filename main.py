@@ -159,10 +159,8 @@ def verify_pattern(ds):
     if ds.min_length == 7 and ds.max_length == 7 and x[4] == '-':
         ds.data_type = 'ACCP'
 
-    if re.match('\d+,\d{2,}',x):
+    if re.match('\d+,\d{2,}', x):
         ds.data_type = 'DEC'
-
-
 
 
 def parse_restriction(element, ds):
@@ -225,10 +223,8 @@ def get_occurs(value):
 
 def main():
     xsd = XsdDocument('XSD/1.0/evtInfoContri.xsd')
-
-    l = set()
-
-    # ds = generate_data_structure(xsd)
+    ds = generate_data_structure(xsd)
+    print ''
 
 
 if __name__ == '__main__':

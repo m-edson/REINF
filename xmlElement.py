@@ -13,6 +13,10 @@ class XmlElement:
         except KeyError:
             return ''
 
+    def get_qualified_name(self):
+        # type: () -> str
+        return self.node.tag
+
     def get_tag_name(self):
         # type: () -> str
         return self.node.tag.split('}')[1]

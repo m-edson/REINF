@@ -1,5 +1,7 @@
+# coding=utf-8
 import re
 import sys
+
 import rstr
 
 from DataStructure import DataStructure
@@ -110,7 +112,7 @@ def parse_attribute(element, ds):
     for node in children_nodes:
         tag = node.get_tag_name()
         if tag == 'simpleType':
-            parse_simple_type(node, attr_ds)
+            parse_simple_type(node, attr_ds, True)
         else:
             print 'Tag <' + tag + '/> nao tratada'
 
@@ -128,8 +130,9 @@ def parse_sequence(element, ds):
             print 'Tag <' + tag + '/> nao tratada'
 
 
-def parse_simple_type(element, ds):
-    ds.xml_type = 'E'
+def parse_simple_type(element, ds, attribute=False):
+    if attribute is False:
+        ds.xml_type = 'E'
 
     children_nodes = element.get_children_nodes()
 
@@ -144,9 +147,9 @@ def parse_simple_type(element, ds):
 def get_data_type(base_attr):
     # type: (str) -> str
     base = base_attr.split(':')[1]
-    if base == 'string':
+    if base == 'string' or base == 'ID':
         return 'STRG'
-    elif base == 'byte' or 'unsignedInt' or 'integer':
+    elif base == 'byte' or base == 'unsignedInt' or base == 'integer':
         return 'NUMC'
     elif base == 'decimal':
         return 'DEC'
@@ -162,6 +165,7 @@ def verify_pattern(ds):
     # type: (DataStructure) -> ()
 
     length = set()
+    x = None
 
     for i in range(0, 1000):
         x = rstr.xeger(ds.pattern)
@@ -273,8 +277,27 @@ def main():
 
     ds.write_method_file()
 
-    ds.write_ddic_generator()
+    # ds.write_ddic_generator()
 
+    ds.gen_local_types()
+
+
+def main2():
+    from zeep import Client
+    from zeep.wsse.signature import Signature
+
+    client = Client('https://preprodefdreinf.receita.fazenda.gov.br/RecepcaoLoteReinf.svc', wsse=Signature(
+        'C:\Users\SEIDOR\AppData\Roaming\Skype\My Skype Received Files\certidao.pfx',
+        'C:\Users\SEIDOR\AppData\Roaming\Skype\My Skype Received Files\certidao.pfx',
+        '12345678'))
+    # client.service.RecepcaoLoteReinf()
+    # result = client.service.ConvertSpeed(
+    #     100, 'kilometersPerhour', 'milesPerhour')
+
+    # print result
+    #
+    # assert result == 62.137
 
 if __name__ == '__main__':
-    main()
+    # main()
+    main2()

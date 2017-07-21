@@ -13,40 +13,45 @@ class AbapClassMethod:
 
     def declaration(self):
         # type: () -> str
-        s = 'METHODS: ' + self.name + '\n'
+        s = '\nMETHODS: ' + self.name + '\n'
         if self.imp_param:
-            s += 'EXPORTING\n'
+            s += '\tIMPORTING\n'
             for p in self.imp_param:
-                s += str(p).replace('.', '') + '\n'
+                s += '\t\t' + str(p).replace('.', '') + '\n'
 
         if self.exp_param:
-            s += 'IMPORTING\n'
+            s += '\tEXPORTING\n'
             for p in self.exp_param:
-                s += str(p).replace('.', '') + '\n'
+                s += '\t\t' + str(p).replace('.', '') + '\n'
 
         if self.changing_param:
-            s += 'CHANGING\n'
-            for p in self.imp_param:
-                s += str(p).replace('.', '') + '\n'
+            s += '\tCHANGING\n'
+            for p in self.changing_param:
+                s += '\t\t' + str(p).replace('.', '') + '\n'
 
         if self.ret_param is not None:
-            s += 'RETURING\n'
-            s += str(self.ret_param).replace('.', '') + '\n'
+            s += '\tRETURING\n'
+            s += '\t\t' + str(self.ret_param).replace('.', '') + '\n'
 
         if self.exceptions:
-            s += 'EXCEPTIONS\n'
+            s += '\tEXCEPTIONS\n'
             for e in self.exceptions:
-                s += str(e[0]) + ' = ' + str(e[1]) + '\n'
+                s += '\t\t' + str(e[0]) + ' = ' + str(e[1]) + '\n'
 
-        s += '.'
+        s = s[:-1]
+        s += '.\n\n'
+        # s = s[-1:]
+        # s += '.\n'
+
         return s
 
     def implementation(self):
         # type: () -> str
-        s = 'METHOD ' + self.name + '.\n'
+
+        s = '\nMETHOD ' + self.name + '.\n\n'
         for line in self.code:
-            s += line + '\n'
-        s += 'ENDMETHOD.'
+            s += line.strip() + '\n'
+        s += '\nENDMETHOD.\n'
         return s
 
 

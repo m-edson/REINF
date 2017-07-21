@@ -8,6 +8,8 @@ from DataStructure import DataStructure
 from xmlElement import XmlElement
 from xsdDocument import XsdDocument
 
+from abap.abapClass import *
+
 
 def generate_data_structure(xsd_doc):
     # type: (XsdDocument) -> Optional[DataStructure]
@@ -28,7 +30,7 @@ def generate_data_structure(xsd_doc):
         elif tag() == 'complexType':
             ds.append_type_ref(parse_complex_type(node, None))
         else:
-            print 'tag ' + tag() + " nao tratada"
+            print 'tag <' + tag() + '/> nao tratada'
 
     ds.name = info[0]
     ds.version = info[1]
@@ -269,35 +271,51 @@ def camel_case_to_underscore(text):
     return value
 
 
+def create(obj):
+    return obj.build()
+
+
+def generate_class(class_name, types, method_code):
+    # type: (str,[AbapTypes],[str]) -> AbapClass
+    f = open('output/' + class_name + '.abap', 'w')
+
+    section_builder = AbapClassSectionBuilder().create_private_session()
+    for tp in types:
+        section_builder.add_declaration(tp)
+    section_builder.add_method(AbapClassMethodBuilder()
+                               .set_method_name('CREATE_OUT_FORMAT')
+                               .add_changing_param(AbapDeclarationBuilder()
+                                                   .set_name('ct_out_format')
+                                                   .set_type('zsoutputformat_t')
+                                                   .set_prefix(3)
+                                                   .build())
+                               .add_code(method_code)
+                               .build())
+    section = section_builder.build()
+
+    cls = create(AbapClassBuilder()
+                 .set_class_name(class_name)
+                 .set_final()
+                 .set_private_session(section))
+
+    f.write(str(cls))
+    return cls
+
+
 def main():
     # xsd = XsdDocument('XSD/1.0/evtInfoContri.xsd')
     xsd = XsdDocument('XSD/1.1.01/evtInfoContribuinte-v1_01_01.xsd')
 
     ds = generate_data_structure(xsd)
 
-    ds.write_method_file()
+    method = ds.write_method_file()[1:-1]
 
     # ds.write_ddic_generator()
 
-    ds.gen_local_types()
+    obj_list = ds.gen_local_types()
 
+    cls = generate_class('z_class_teste', obj_list, method)
 
-def main2():
-    from zeep import Client
-    from zeep.wsse.signature import Signature
-
-    client = Client('https://preprodefdreinf.receita.fazenda.gov.br/RecepcaoLoteReinf.svc', wsse=Signature(
-        'C:\Users\SEIDOR\AppData\Roaming\Skype\My Skype Received Files\certidao.pfx',
-        'C:\Users\SEIDOR\AppData\Roaming\Skype\My Skype Received Files\certidao.pfx',
-        '12345678'))
-    # client.service.RecepcaoLoteReinf()
-    # result = client.service.ConvertSpeed(
-    #     100, 'kilometersPerhour', 'milesPerhour')
-
-    # print result
-    #
-    # assert result == 62.137
 
 if __name__ == '__main__':
-    # main()
-    main2()
+    main()

@@ -1,4 +1,4 @@
-from abapClassSession import *
+from abapClassSection import *
 
 
 class AbapClass:
@@ -13,40 +13,46 @@ class AbapClass:
 
     def __str__(self):
         s = 'CLASS ' + str(self.name) + ' DEFINITION\n'
+        s += 'PUBLIC\n'
         if self.parent_class != '':
             s += 'INHERITING FROM ' + self.parent_class + '\n'
         if self.final:
             s += 'FINAL\n'
         elif self.abstract:
             s += 'ABSTRACT\n'
-        s += 'CREATE PUBLIC.\n'
+        s += 'CREATE PUBLIC.\n\n'
 
-        s += str(self.public_session.build())
-        s += str(self.protected_session.build())
-        s += str(self.public_session.build())
+        if self.public_session is not None:
+            s += str(self.public_session)
+        if self.protected_session is not None:
+            s += str(self.protected_session)
+        if self.private_session is not None:
+            s += str(self.private_session)
 
         s += 'ENDCLASS.\n\n'
 
-        s += 'CLASS ' + str(self.name) + ' IMPLEMENTATION.'
+        s += 'CLASS ' + str(self.name) + ' IMPLEMENTATION.\n'
 
-        for m in self.public_session.build().methods:
-            s += m.implementation()
+        if self.public_session is not None:
+            for m in self.public_session.methods:
+                s += m.implementation()
 
-        for m in self.protected_session.build().methods:
-            s += m.implementation()
+        if self.protected_session is not None:
+            for m in self.protected_session.methods:
+                s += m.implementation()
 
-        for m in self.private_session.build().methods:
-            s += m.implementation()
+        if self.private_session is not None:
+            for m in self.private_session.methods:
+                s += m.implementation()
 
-        s += 'ENDCLASS.'
+        s += '\nENDCLASS.'
+
+        return s
 
 
 class AbapClassBuilder:
     def __init__(self):
         self._abap_class = AbapClass()
-        self._private_session_builder = AbapClassSessionBuilder()
-        self._protected_session_builder = AbapClassSessionBuilder()
-        self._public_session_builder = AbapClassSessionBuilder()
 
     @staticmethod
     def create(abap_class_builder):
@@ -76,19 +82,51 @@ class AbapClassBuilder:
 
     def set_final(self, final=True):
         # type: (bool) -> AbapClassBuilder
-        self._abap_class = final
+        self._abap_class.final = final
         if final:
             self._abap_class.abstract = False
         return self
 
-    def private_session(self):
-        # type: (str) -> AbapClassSessionBuilder
-        return self._private_session_builder
+    def set_private_session(self, class_session):
+        # type: (AbapClassSection) -> AbapClassBuilder
+        self._abap_class.private_session = class_session
+        return self
 
-    def protected_session(self):
-        # type: (str) -> AbapClassSessionBuilder
-        return self._protected_session_builder
+    def set_protected_session(self, class_session):
+        # type: (AbapClassSection) -> AbapClassBuilder
+        self._abap_class.protected_session = class_session
+        return self
 
-    def public_session(self):
-        # type: (str) -> AbapClassSessionBuilder
-        return self._public_session_builder
+    def set_public_session(self, class_session):
+        # type: (AbapClassSection) -> AbapClassBuilder
+        self._abap_class.public_session = class_session
+        return self
+
+# def create(obj):
+#     return obj.build()
+#
+#
+# method = create(AbapClassMethodBuilder()
+#                 .set_method_name('Method_1')
+#                 .add_importing_param(AbapDeclarationBuilder()
+#                                      .set_name('var1')
+#                                      .set_type('BUKRS')
+#                                      .set_prefix(3)
+#                                      .build())
+#                 .add_importing_param(AbapDeclarationBuilder()
+#                                      .set_name('var2')
+#                                      .set_type('J_1BBRANC_')
+#                                      .set_prefix(3)
+#                                      .build())
+#                 .add_code(['WRITE: \'Hello World\'.']))
+#
+# session = create(AbapClassSectionBuilder()
+#                  .set_session_type('PUBLIC')
+#                  .add_method(method))
+#
+# _class = create(AbapClassBuilder()
+#                 .set_class_name('Z_CLASS_TESTE')
+#                 .set_final()
+#                 .set_private_session(session))
+#
+# print str(_class)

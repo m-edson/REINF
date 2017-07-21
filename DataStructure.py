@@ -1,5 +1,9 @@
 from abapHelper import *
-from abap.abapTypes import AbapTypes as AbapTypes
+from abap.abapTypes import *
+
+
+def create(obj):
+    return obj.build()
 
 
 def camel_case_to_underscore(text):
@@ -166,49 +170,53 @@ class DataStructure:
                 node.xml_type = 'G'
             node.resolve_type_references(types, type_names)
 
-    def write_method_file(self, f=None, level=-1):
-        # type: (file, int) -> ()
-
+    def write_method_file(self, f=None, level=-1, obj_repr=[]):
+        # type: (file, int) -> str
+        s = []
         if level == -1:
             path = 'output/' + self.name + '_' + self.version + '.abap'
             f = open(path, 'w')
 
-            f.write('METHOD create_out_format.\n')
-            f.write('DATA: lw_out_format TYPE zsoutputformat.\n\n')
+            s.append('METHOD create_out_format.\n')
+            s.append('DATA: lw_out_format TYPE zsoutputformat.\n\n')
 
-            f.write('DEFINE monta_formatador_1.\n\n')
+            s.append('DEFINE monta_formatador_1.\n\n')
 
-            f.write('lw_out_format-level = &1.\n')
-            f.write('lw_out_format-var_name = &2.\n')
-            f.write('lw_out_format-xml_name = &3.\n')
-            f.write('lw_out_format-xml_type = &4.\n')
-            f.write('lw_out_format-min_occurs = &5.\n')
-            f.write('lw_out_format-max_occurs = &6.\n')
-            f.write('lw_out_format-min_length = &7.\n')
-            f.write('lw_out_format-max_length = &8.\n')
-            f.write('lw_out_format-pattern = &9.\n\n')
+            s.append('lw_out_format-level = &1.\n')
+            s.append('lw_out_format-var_name = &2.\n')
+            s.append('lw_out_format-xml_name = &3.\n')
+            s.append('lw_out_format-xml_type = &4.\n')
+            s.append('lw_out_format-min_occurs = &5.\n')
+            s.append('lw_out_format-max_occurs = &6.\n')
+            s.append('lw_out_format-min_length = &7.\n')
+            s.append('lw_out_format-max_length = &8.\n')
+            s.append('lw_out_format-pattern = &9.\n\n')
 
-            f.write('END-OF-DEFINITION.\n\n')
+            s.append('END-OF-DEFINITION.\n\n')
 
-            f.write('DEFINE monta_formatador_2.\n\n')
-            f.write('lw_out_format-datatype = &1.\n')
-            f.write('APPEND lw_out_format TO ct_out_format.\n')
-            f.write('CLEAR lw_out_format.\n\n')
-            f.write('END-OF-DEFINITION.\n\n')
+            s.append('DEFINE monta_formatador_2.\n\n')
+            s.append('lw_out_format-datatype = &1.\n')
+            s.append('APPEND lw_out_format TO ct_out_format.\n')
+            s.append('CLEAR lw_out_format.\n\n')
+            s.append('END-OF-DEFINITION.\n\n')
 
-        f.write(
-            'monta_formatador_1 ' + str(level) + ' \'' + str(self.var_name) + '\'' + ' \'' + str(self.xml_name) + '\'' +
-            ' \'' + str(self.xml_type) + '\' ' + str(self.min_occurs) + ' ' + str(self.max_occurs) + ' ' +
-            str(self.min_length) + ' ' + str(self.max_length) + ' ' +
-            '\'' + str(self.pattern) + '\'' + '.\n')
-        f.write('monta_formatador_2 ' + '\'' + str(self.data_type) + '\'' + '.\n\n')
+        if not obj_repr.__contains__(repr(self)):
+            s.append('monta_formatador_1 ' + str(level) + ' \'' + str(self.var_name) + '\'' + ' \'' + str(
+                self.xml_name) + '\'' + ' \'' + str(self.xml_type) + '\' ' + str(self.min_occurs) + ' ' + str(
+                self.max_occurs) + ' ' + str(self.min_length) + ' ' + str(self.max_length) + ' ' + '\'' + str(
+                self.pattern) + '\'' + '.\n')
+            s.append('monta_formatador_2 ' + '\'' + str(self.data_type) + '\'' + '.\n\n')
+            obj_repr.append(repr(self))
 
         for child in self._children:
-            child.write_method_file(f, level + 1)
+            s += child.write_method_file(f, level + 1, obj_repr)
 
         if level == -1:
-            f.write('ENDMETHOD.\n')
+            s.append('ENDMETHOD.\n')
+            for command in s:
+                f.write(command)
             f.close()
+        return s
 
     def get_ddic_type(self):
         # type: (str) -> str
@@ -219,46 +227,72 @@ class DataStructure:
             val = self.var_name
         return val
 
-    def gen_local_types(self, write=True, command_stack=[], decl_strct=set()):
+    def gen_local_types(self, write=True, command_stack=[], obj_list=[]):
         # type: (bool,list) -> ()
 
         if self.var_name == 'REINF':
             self.get_children_nodes()[0].gen_local_types(False, command_stack)
         else:
+            types = AbapTypesBuilder()
+            if self.xml_type == 'G':
 
-            if self.xml_type == 'G' and not decl_strct.__contains__(repr(self)):
-                abapTypes = AbapTypes(self.var_name)
                 if self.max_occurs > 1:
-                    command_stack.append(AbapHelper.local_table_type(self.var_name))
-
-                # command_stack.append(AbapHelper.local_types_end(self.var_name))
+                    obj_list.append(create(AbapTypesBuilder()
+                                           .cretate_types()
+                                           .add_declaration(AbapDeclarationBuilder()
+                                                            .set_name(self.var_name + '_T')
+                                                            .set_type(self.var_name)
+                                                            .set_ttype().type_table_of()
+                                                            .build())))
+                    #
+                    #     command_stack.append(AbapHelper.local_table_type(self.var_name))
+                    #
+                    # command_stack.append(AbapHelper.local_types_end(self.var_name))
+                types.create_types_begin_of(self.var_name)
 
                 for n in self.get_children_nodes():
                     if n.max_occurs > 1:
                         tab_cat_name = n.var_name + '_T'
+                        types.add_declaration(AbapDeclarationBuilder()
+                                              .set_name(n.var_name)
+                                              .set_type(tab_cat_name)
+                                              .build())
+
                         # command_stack.append(AbapHelper.local_types_line(n.var_name, tab_cat_name))
-                        abapTypes.add_type(n.var_name, tab_cat_name)
                     else:
+                        types.add_declaration(AbapDeclarationBuilder()
+                                              .set_name(n.var_name)
+                                              .set_type(n.get_ddic_type())
+                                              .build())
                         # command_stack.append(AbapHelper.local_types_line(n.var_name, n.get_ddic_type()))
-                        abapTypes.add_type(n.var_name, n.get_ddic_type())
-                command_stack.append(abapTypes.build_command())
-                # decl_strct.add(repr(self))
+                        # command_stack.append(abap_types.build_command())
+                        # decl_strct.add(repr(self))
+                obj_list.append(types.build())
 
             for n in self.get_children_nodes():
-                n.gen_local_types(False, command_stack, decl_strct)
+                n.gen_local_types(False, command_stack, obj_list)
 
+        objects = []
         if write is True:
             f = open('output/locl_' + self.name + '-' + self.version + '.abap', 'w')
             printed_commands = list()
-            while command_stack:
-                command = command_stack.pop()
-                if not printed_commands.__contains__(command):
-                    for c in command:
-                        f.write(c)
-                        f.write('\n')
-                    f.write('\n')
-                    printed_commands.append(command)
+            while obj_list:
+                obj = obj_list.pop()
+                if not printed_commands.__contains__(str(obj)):
+                    f.write(str(obj))
+                    objects.append(obj)
+                    printed_commands.append(str(obj))
             f.close()
+        return objects
+
+
+def _uniquify(l):
+    # type: (list) -> list
+    unique = []
+    for item in l:
+        if item not in unique:
+            unique.append(item)
+    return unique
 
 # class DataDescription:
 #     def __init__(self):

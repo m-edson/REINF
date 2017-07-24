@@ -4,15 +4,20 @@ import sys
 
 import rstr
 
+from os import listdir
+from os.path import isfile, join
+
 from DataStructure import DataStructure
 from xmlElement import XmlElement
 from xsdDocument import XsdDocument
 
 from abap.abapClass import *
 
+special_characters = ['\\', '^', '$', '.', '|', '?', '*', '+', '(', ')', '[', ']', '{', '}']
+
 
 def generate_data_structure(xsd_doc):
-    # type: (XsdDocument) -> Optional[DataStructure]
+    # type: (XsdDocument) -> ((str,str), DataStructure)
 
     root_node = xsd_doc.get_root_node()
 
@@ -37,7 +42,7 @@ def generate_data_structure(xsd_doc):
 
     ds.resolve_type_references(ds.get_types())
 
-    return ds
+    return ds, info
 
 
 def parse_element(element, parent):
@@ -132,6 +137,37 @@ def parse_sequence(element, ds):
             print 'Tag <' + tag + '/> nao tratada'
 
 
+def parse_union(element, ds):
+    # type: (XmlElement,DataStructure) -> ()
+    children_nodes = element.get_children_nodes()
+
+    types = []
+
+    for node in children_nodes:
+        tag = node.get_tag_name()
+        ds_aux = DataStructure()
+        if tag == 'simpleType':
+            parse_simple_type(node, ds_aux)
+            verify_pattern(ds_aux)
+            types.append(ds_aux)
+        else:
+            print 'Tag <' + tag + '/> nao tratada'
+
+    ds.max_length = 0
+    ds.min_length = 99999999
+    ds.pattern = ''
+    ds.data_type = 'STRG'
+    for t in types:
+        if ds.max_length < t.max_length:
+            ds.max_length = t.max_length
+        if ds.min_length > t.min_length:
+            ds.min_length = t.min_length
+        if ds.pattern == '':
+            ds.pattern += t.pattern
+        else:
+            ds.pattern += '|' + t.pattern
+
+
 def parse_simple_type(element, ds, attribute=False):
     if attribute is False:
         ds.xml_type = 'E'
@@ -142,6 +178,8 @@ def parse_simple_type(element, ds, attribute=False):
         tag = node.get_tag_name()
         if tag == 'restriction':
             parse_restriction(node, ds)
+        elif tag == 'union':
+            parse_union(node, ds)
         else:
             print 'Tag <' + tag + '/> nao tratada'
 
@@ -184,6 +222,7 @@ def verify_pattern(ds):
 
 
 def parse_restriction(element, ds):
+    # type: (XmlElement, DataStructure) -> ()
     ds.data_type = get_data_type(element.get_attribute_by_name('base'))
 
     children_nodes = element.get_children_nodes()
@@ -200,6 +239,24 @@ def parse_restriction(element, ds):
         elif tag == 'length':
             ds.min_length = int(node.get_attribute_by_name('value'))
             ds.max_length = int(node.get_attribute_by_name('value'))
+        elif tag == 'enumeration':
+            for ch in special_characters:
+                pattern = node.get_attribute_by_name('value').replace(ch, '\\' + ch)
+            if ds.pattern == '':
+                ds.pattern += pattern
+            else:
+                ds.pattern += '|' + pattern
+        elif tag == 'minInclusive':
+            ds.min_value = int(node.get_attribute_by_name('value'))
+        elif tag == 'maxInclusive':
+            ds.max_value = int(node.get_attribute_by_name('value'))
+        elif tag == 'totalDigits':
+            ds.max_length = int(node.get_attribute_by_name('value'))
+        elif tag == 'fractionDigits':
+            ds.decimals = int(node.get_attribute_by_name('value'))
+        elif tag == 'whiteSpace':
+            ds.whitespace = node.get_attribute_by_name('value')
+
         else:
             print 'Tag <' + tag + '/> nao tratada'
 
@@ -247,6 +304,14 @@ def get_occurs(value):
                 raise ValueError('Valor nao esperado: %s' % value)
 
 
+def underscore_to_camel_case(text):
+    # type: (str) -> str
+    tokens = text.split('_')
+    result = [tokens[0].lower()]
+    result += map(str.title, tokens[1:])
+    return ''.join(result)
+
+
 def camel_case_to_underscore(text):
     l = map(lambda x: x if x.islower() else "_" + x, text)
 
@@ -277,44 +342,108 @@ def create(obj):
 
 def generate_class(class_name, types, method_code):
     # type: (str,[AbapTypes],[str]) -> AbapClass
+    class_name = class_name.lower()
     f = open('output/' + class_name + '.abap', 'w')
 
-    section_builder = AbapClassSectionBuilder().create_private_session()
+    private_section_builder = AbapClassSectionBuilder().create_private_session()
     for tp in types:
-        section_builder.add_declaration(tp)
-    section_builder.add_method(AbapClassMethodBuilder()
-                               .set_method_name('CREATE_OUT_FORMAT')
-                               .add_changing_param(AbapDeclarationBuilder()
-                                                   .set_name('ct_out_format')
-                                                   .set_type('zsoutputformat_t')
-                                                   .set_prefix(3)
-                                                   .build())
-                               .add_code(method_code)
-                               .build())
-    section = section_builder.build()
+        private_section_builder.add_declaration(tp)
+
+    private_section_builder.add_declaration(AbapDeclarationBuilder()
+                                            .set_name('event_data')
+                                            .set_type(types[-1].name)
+                                            .build())
+    private_section = private_section_builder.build()
+
+    AbapClassSectionBuilder().create_protected_session()
+
+    protected_section = create(AbapClassSectionBuilder()
+                               .create_protected_session()
+                               .add_method(AbapClassMethodBuilder()
+                                           .set_method_name('build')
+                                           .set_redefinition()
+                                           .add_code(['* Modifique este método'])
+                                           .build())
+                               .add_method(AbapClassMethodBuilder()
+                                           .set_method_name('set_xml_descr')
+                                           .set_redefinition()
+                                           .add_code(method_code).build())
+                               .add_method(AbapClassMethodBuilder()
+                                           .set_method_name('get_root_node_name')
+                                           .set_redefinition()
+                                           .add_code(
+        ['rv_node_name = \'' + underscore_to_camel_case(types[-1].name) + '\'.'])
+                                           .build()))
+
+    public_section = create(AbapClassSectionBuilder()
+                            .create_public_session()
+                            .add_method(AbapClassMethodBuilder()
+                                        .set_method_name('get_xml_data')
+                                        .set_redefinition()
+                                        .add_code(['GET REFERENCE OF me->event_data INTO ro_xml_data.'])
+                                        .build()))
 
     cls = create(AbapClassBuilder()
                  .set_class_name(class_name)
+                 .set_parent_class('YXML_EVT_REINF')
                  .set_final()
-                 .set_private_session(section))
+                 .set_private_session(private_section)
+                 .set_protected_session(protected_section)
+                 .set_public_session(public_section))
 
     f.write(str(cls))
+    f.close()
     return cls
 
 
+class_name_map = dict()
+
+
+def init_class_name_dict():
+    class_name_map['evtInfoContribuinte'] = 'R1000'
+    class_name_map['evtEspDesportivo'] = 'R3010'
+    class_name_map['evtExclusao'] = 'R9000'
+    class_name_map['evtFechamento'] = 'R2099'
+    class_name_map['evtInfoCPRB'] = 'R2060'
+    class_name_map['evtInfoProdRural'] = 'R2050'
+    class_name_map['evtPgtosDivs'] = 'R2070'
+    class_name_map['evtPrestadorServicos'] = 'R2020'
+    class_name_map['evtReabreEvPer'] = 'R2098'
+    class_name_map['evtRecursoRecebidoAssociacao'] = 'R2030'
+    class_name_map['evtRecursoRepassadoAssociacao'] = 'R2040'
+    class_name_map['evtTabProcesso'] = 'R1070'
+    class_name_map['evtTomadorServicos'] = 'R2010'
+    class_name_map['retornoTotalizadorContribuinte'] = 'R5001'
+
+
+def file_name_to_class_name(prefix, evt_name, version):
+    # type: (str,str,str) -> str
+    class_name = prefix + class_name_map[evt_name]
+    class_name += '_XML_' + version
+    return class_name
+
+
 def main():
-    # xsd = XsdDocument('XSD/1.0/evtInfoContri.xsd')
-    xsd = XsdDocument('XSD/1.1.01/evtInfoContribuinte-v1_01_01.xsd')
+    init_class_name_dict()
 
-    ds = generate_data_structure(xsd)
+    path = 'XSD/1.1.01/'
+    files = [path + f for f in listdir(path) if isfile(join(path, f))][:-1]
 
-    method = ds.write_method_file()[1:-1]
+    for f in files:
+        # xsd = XsdDocument('XSD/1.0/evtInfoContri.xsd')
+        xsd = XsdDocument(f)
 
-    # ds.write_ddic_generator()
+        ds, info = generate_data_structure(xsd)
 
-    obj_list = ds.gen_local_types()
+        evt_name, version = info
 
-    cls = generate_class('z_class_teste', obj_list, method)
+        class_name = file_name_to_class_name('Y', evt_name, version)
+
+        method = ds.write_method_file()[1:-1]
+
+        obj_list = ds.gen_local_types()
+
+        cls = generate_class(class_name, obj_list, method)
 
 
 if __name__ == '__main__':

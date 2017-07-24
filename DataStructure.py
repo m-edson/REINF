@@ -67,6 +67,10 @@ class DataStructure:
         self.max_length = 0
         self.pattern = ''
         self.data_type = ''
+        self.max_value = 0
+        self.min_value = 0
+        self.decimals = 0
+        self.whitespace = 'collapse'
 
     def __repr__(self):
         if self._children:
@@ -196,7 +200,7 @@ class DataStructure:
 
             s.append('DEFINE monta_formatador_2.\n\n')
             s.append('lw_out_format-datatype = &1.\n')
-            s.append('APPEND lw_out_format TO ct_out_format.\n')
+            s.append('APPEND lw_out_format TO me->xml_format_descr.\n')
             s.append('CLEAR lw_out_format.\n\n')
             s.append('END-OF-DEFINITION.\n\n')
 

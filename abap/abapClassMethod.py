@@ -10,38 +10,40 @@ class AbapClassMethod:
         self.ret_param = None
         self.exceptions = list()
         self.code = list()
+        self.redefinition = False
 
     def declaration(self):
         # type: () -> str
         s = '\nMETHODS: ' + self.name + '\n'
-        if self.imp_param:
-            s += '\tIMPORTING\n'
-            for p in self.imp_param:
-                s += '\t\t' + str(p).replace('.', '') + '\n'
+        if self.redefinition:
+            s = s[0:-1] + ' REDEFINITION.\n'
+        else:
+            if self.imp_param:
+                s += '\tIMPORTING\n'
+                for p in self.imp_param:
+                    s += '\t\t' + str(p).replace('.', '') + '\n'
 
-        if self.exp_param:
-            s += '\tEXPORTING\n'
-            for p in self.exp_param:
-                s += '\t\t' + str(p).replace('.', '') + '\n'
+            if self.exp_param:
+                s += '\tEXPORTING\n'
+                for p in self.exp_param:
+                    s += '\t\t' + str(p).replace('.', '') + '\n'
 
-        if self.changing_param:
-            s += '\tCHANGING\n'
-            for p in self.changing_param:
-                s += '\t\t' + str(p).replace('.', '') + '\n'
+            if self.changing_param:
+                s += '\tCHANGING\n'
+                for p in self.changing_param:
+                    s += '\t\t' + str(p).replace('.', '') + '\n'
 
-        if self.ret_param is not None:
-            s += '\tRETURING\n'
-            s += '\t\t' + str(self.ret_param).replace('.', '') + '\n'
+            if self.ret_param is not None:
+                s += '\tRETURING\n'
+                s += '\t\t' + str(self.ret_param).replace('.', '') + '\n'
 
-        if self.exceptions:
-            s += '\tEXCEPTIONS\n'
-            for e in self.exceptions:
-                s += '\t\t' + str(e[0]) + ' = ' + str(e[1]) + '\n'
+            if self.exceptions:
+                s += '\tEXCEPTIONS\n'
+                for e in self.exceptions:
+                    s += '\t\t' + str(e[0]) + ' = ' + str(e[1]) + '\n'
 
-        s = s[:-1]
-        s += '.\n\n'
-        # s = s[-1:]
-        # s += '.\n'
+            s = s[:-1]
+            s += '.\n\n'
 
         return s
 
@@ -72,7 +74,6 @@ class AbapClassMethodBuilder:
     def add_importing_param(self, param):
         # type: (AbapDeclaration) -> AbapClassMethodBuilder
         self._class_method.imp_param.add(param)
-        return self
 
     def add_changing_param(self, param):
         # type: (AbapDeclaration) -> AbapClassMethodBuilder
@@ -82,6 +83,10 @@ class AbapClassMethodBuilder:
     def def_returning_param(self, param):
         # type: (AbapDeclaration) -> AbapClassMethodBuilder
         self._class_method.ret_param = param
+        return self
+
+    def set_redefinition(self, value=True):
+        self._class_method.redefinition = value
         return self
 
     def add_exception(self, exception):

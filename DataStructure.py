@@ -174,10 +174,11 @@ class DataStructure:
                 node.xml_type = 'G'
             node.resolve_type_references(types, type_names)
 
-    def write_method_file(self, f=None, level=-1, obj_repr=[]):
+    def write_method_file(self, f=None, level=-1, obj_repr=list()):
         # type: (file, int) -> str
         s = []
         if level == -1:
+            obj_repr = list()
             path = 'output/' + self.name + '_' + self.version + '.abap'
             f = open(path, 'w')
 
@@ -205,12 +206,13 @@ class DataStructure:
             s.append('END-OF-DEFINITION.\n\n')
 
         if not obj_repr.__contains__(repr(self)):
-            s.append('monta_formatador_1 ' + str(level) + ' \'' + str(self.var_name) + '\'' + ' \'' + str(
-                self.xml_name) + '\'' + ' \'' + str(self.xml_type) + '\' ' + str(self.min_occurs) + ' ' + str(
-                self.max_occurs) + ' ' + str(self.min_length) + ' ' + str(self.max_length) + ' ' + '\'' + str(
-                self.pattern) + '\'' + '.\n')
-            s.append('monta_formatador_2 ' + '\'' + str(self.data_type) + '\'' + '.\n\n')
-            obj_repr.append(repr(self))
+            if not self.xml_name.__contains__('Signature'):
+                s.append('monta_formatador_1 ' + str(level) + ' \'' + str(self.var_name) + '\'' + ' \'' + str(
+                    self.xml_name) + '\'' + ' \'' + str(self.xml_type) + '\' ' + str(self.min_occurs) + ' ' + str(
+                    self.max_occurs) + ' ' + str(self.min_length) + ' ' + str(self.max_length) + ' ' + '\'' + str(
+                    self.pattern) + '\'' + '.\n')
+                s.append('monta_formatador_2 ' + '\'' + str(self.data_type) + '\'' + '.\n\n')
+                obj_repr.append(repr(self))
 
         for child in self._children:
             s += child.write_method_file(f, level + 1, obj_repr)

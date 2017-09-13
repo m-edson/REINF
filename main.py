@@ -189,7 +189,7 @@ def get_data_type(base_attr):
     base = base_attr.split(':')[1]
     if base == 'string' or base == 'ID':
         return 'STRG'
-    elif base == 'byte' or base == 'unsignedInt' or base == 'integer':
+    elif base == 'byte' or base == 'unsignedInt' or base == 'integer' or base == 'unsignedByte' or base == 'unsignedLong':
         return 'NUMC'
     elif base == 'decimal':
         return 'DEC'
@@ -224,6 +224,11 @@ def verify_pattern(ds):
 def parse_restriction(element, ds):
     # type: (XmlElement, DataStructure) -> ()
     ds.data_type = get_data_type(element.get_attribute_by_name('base'))
+
+    if ds.data_type == 'DATS':
+        ds.min_length = 10.
+        ds.max_length = 10.
+
 
     children_nodes = element.get_children_nodes()
 
@@ -340,10 +345,11 @@ def create(obj):
     return obj.build()
 
 
-def generate_class(class_name, types, method_code):
+def generate_class(namespace, version, types, method_code):
     # type: (str,[AbapTypes],[str]) -> AbapClass
-    class_name = class_name.lower()
-    f = open('output/' + class_name + '.abap', 'w')
+
+    class_name = file_name_to_class_name('CL_', namespace, version)
+    f = open('output/ ' + class_name + '.abap', 'w')
 
     private_section_builder = AbapClassSectionBuilder().create_private_session()
     for tp in types:
@@ -362,7 +368,7 @@ def generate_class(class_name, types, method_code):
                                .add_method(AbapClassMethodBuilder()
                                            .set_method_name('build')
                                            .set_redefinition()
-                                           .add_code(['* Modifique este método'])
+                                           .add_code(build_method_type_check_code())
                                            .build())
                                .add_method(AbapClassMethodBuilder()
                                            .set_method_name('set_xml_descr')
@@ -373,6 +379,16 @@ def generate_class(class_name, types, method_code):
                                            .set_redefinition()
                                            .add_code(
         ['rv_node_name = \'' + underscore_to_camel_case(types[-1].name) + '\'.'])
+                                           .build())
+                               .add_method(AbapClassMethodBuilder()
+                                           .set_method_name('get_namespace')
+                                           .set_redefinition()
+                                           .add_code(['rv_namespace = \'' + namespace + '\'.'])
+                                           .build())
+                               .add_method(AbapClassMethodBuilder()
+                                           .set_method_name('get_version')
+                                           .set_redefinition()
+                                           .add_code(['rv_version = \'' + version + '\'.'])
                                            .build()))
 
     public_section = create(AbapClassSectionBuilder()
@@ -384,8 +400,8 @@ def generate_class(class_name, types, method_code):
                                         .build()))
 
     cls = create(AbapClassBuilder()
-                 .set_class_name(class_name)
-                 .set_parent_class('YXML_EVT_REINF')
+                 .set_class_name('/VTAX/' + class_name)
+                 .set_parent_class('/VTAX/CL_REINF_EVENT_XML')
                  .set_final()
                  .set_private_session(private_section)
                  .set_protected_session(protected_section)
@@ -414,6 +430,8 @@ def init_class_name_dict():
     class_name_map['evtTabProcesso'] = 'R1070'
     class_name_map['evtTomadorServicos'] = 'R2010'
     class_name_map['retornoTotalizadorContribuinte'] = 'R5001'
+    class_name_map['retornoEvento'] = 'RetEvt'
+    class_name_map['retornoLoteEventos'] = 'RetLoteEvts'
 
 
 def file_name_to_class_name(prefix, evt_name, version):
@@ -423,6 +441,33 @@ def file_name_to_class_name(prefix, evt_name, version):
     return class_name
 
 
+def build_method_type_check_code():
+    code = []
+    code.append('DATA: lo_type_descr  TYPE REF TO cl_abap_typedescr,\n')
+    code.append('      lo_class_descr TYPE REF TO cl_abap_classdescr,\n')
+    code.append('      lo_r1000     TYPE REF TO /VTAX/CL_R1000,\n')
+    code.append('  class_type     TYPE string.\n')
+
+    code.append('\nlo_type_descr = cl_abap_typedescr=>describe_by_object_ref( p_object_ref = evt_data ).\n')
+
+    code.append('\nTRY.\n')
+    code.append('    lo_class_descr ?= lo_type_descr.\n')
+    code.append('  CATCH cx_sy_move_cast_error.\n')
+    code.append('    MESSAGE \'Tipo do parâmetro incorreto. Era esperado um objeto.\' TYPE \'E\'.\n')
+    code.append('ENDTRY.\n')
+
+    code.append('class_type = lo_class_descr->get_relative_name( ).\n')
+    code.append('TRY.\n')
+    code.append('    lo_r1000 ?= evt_data.\n')
+    code.append('  CATCH cx_sy_move_cast_error.\n')
+    code.append('    MESSAGE \'Classe incorreta\' TYPE \'E\'.\n')
+    code.append('ENDTRY.\n')
+    code.append('****************************************\n')
+    code.append('*************YOUR CODE HERE*************\n')
+    code.append('****************************************\n')
+    return code
+
+
 def main():
     init_class_name_dict()
 
@@ -430,21 +475,24 @@ def main():
     files = [path + f for f in listdir(path) if isfile(join(path, f))][:-1]
 
     for f in files:
-        # xsd = XsdDocument('XSD/1.0/evtInfoContri.xsd')
+        # xsd = XsdDocument('XSD/1.1.01/evtTabProcesso-v1_01_01.xsd')
         xsd = XsdDocument(f)
 
         ds, info = generate_data_structure(xsd)
 
         evt_name, version = info
 
-        class_name = file_name_to_class_name('Y', evt_name, version)
-
         method = ds.write_method_file()[1:-1]
 
         obj_list = ds.gen_local_types()
 
-        cls = generate_class(class_name, obj_list, method)
+        cls = generate_class(evt_name, version, obj_list, method)
+
+
+def main2():
+    pass
 
 
 if __name__ == '__main__':
+    # main2()
     main()

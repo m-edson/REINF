@@ -32,16 +32,16 @@ def camel_case_to_underscore(text):
 
 def _init_ddic():
     ddic = dict()
-    ddic['ACCP'] = 'Z_REINF_PERIODO'
+    ddic['ACCP'] = '/VTAX/E_REINF_PERIODO'
 
-    ddic['STRG'] = 'Z_REINF_TEXTO'
-    ddic['xs:ID'] = 'Z_REINF_TEXTO'
+    ddic['STRG'] = '/VTAX/E_REINF_TEXTO'
+    ddic['xs:ID'] = '/VTAX/E_REINF_TEXTO'
 
-    ddic['NUMC'] = 'Z_REINF_NUMERO'
+    ddic['NUMC'] = '/VTAX/E_REINF_NUMERO'
 
-    ddic['DEC'] = 'Z_REINF_VALOR'
+    ddic['DEC'] = '/VTAX/E_REINF_VALOR'
 
-    ddic['DATS'] = 'Z_REINF_DATA'
+    ddic['DATS'] = '/VTAX/E_REINF_DATA'
 
     return ddic
 
@@ -174,16 +174,16 @@ class DataStructure:
                 node.xml_type = 'G'
             node.resolve_type_references(types, type_names)
 
-    def write_method_file(self, f=None, level=-1, obj_repr=list()):
+    def write_method_file(self, f=None, level=0, obj_repr=list()):
         # type: (file, int) -> str
         s = []
-        if level == -1:
+        if level == 0:
             obj_repr = list()
             path = 'output/' + self.name + '_' + self.version + '.abap'
             f = open(path, 'w')
 
             s.append('METHOD create_out_format.\n')
-            s.append('DATA: lw_out_format TYPE zsoutputformat.\n\n')
+            s.append('DATA: lw_out_format TYPE /VTAX/S_OUTPUTFORMAT.\n\n')
 
             s.append('DEFINE monta_formatador_1.\n\n')
 
@@ -217,7 +217,7 @@ class DataStructure:
         for child in self._children:
             s += child.write_method_file(f, level + 1, obj_repr)
 
-        if level == -1:
+        if level == 0:
             s.append('ENDMETHOD.\n')
             for command in s:
                 f.write(command)

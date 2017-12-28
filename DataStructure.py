@@ -71,6 +71,7 @@ class DataStructure:
         self.min_value = 0
         self.decimals = 0
         self.whitespace = 'collapse'
+        self.documentation = ''
 
     def __repr__(self):
         if self._children:

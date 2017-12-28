@@ -66,6 +66,8 @@ def parse_element(element, parent):
             parse_complex_type(node, ds)
         elif tag == 'simpleType':
             parse_simple_type(node, ds)
+        elif tag == 'annotation':
+            parse_annotation(node, ds)
         else:
             print 'Tag <' + tag + '/> nao tratada'
 
@@ -74,6 +76,17 @@ def parse_element(element, parent):
     else:
         parent.append_child(ds)
         return parent
+
+
+def parse_annotation(element, ds):
+    children_nodes = element.get_children_nodes()
+
+    for node in children_nodes:
+        tag = node.get_tag_name()
+        if tag == 'documentation':
+            ds.documentation = node.get_value()
+        else:
+            print 'Tag <' + tag + '/> nao tratada'
 
 
 def parse_complex_type(element, ds):
@@ -93,6 +106,8 @@ def parse_complex_type(element, ds):
             parse_sequence(node, ds)
         elif tag == 'attribute':
             parse_attribute(node, ds)
+        elif tag == 'annotation':
+            parse_annotation(node, ds)
         else:
             print 'Tag <' + tag + '/> nao tratada'
 
@@ -120,6 +135,8 @@ def parse_attribute(element, ds):
         tag = node.get_tag_name()
         if tag == 'simpleType':
             parse_simple_type(node, attr_ds, True)
+        elif tag == 'annotation':
+            parse_annotation(node, attr_ds)
         else:
             print 'Tag <' + tag + '/> nao tratada'
 
@@ -180,6 +197,8 @@ def parse_simple_type(element, ds, attribute=False):
             parse_restriction(node, ds)
         elif tag == 'union':
             parse_union(node, ds)
+        elif tag == 'annotation':
+            parse_annotation(node, ds)
         else:
             print 'Tag <' + tag + '/> nao tratada'
 
@@ -228,7 +247,6 @@ def parse_restriction(element, ds):
     if ds.data_type == 'DATS':
         ds.min_length = 10.
         ds.max_length = 10.
-
 
     children_nodes = element.get_children_nodes()
 
@@ -328,6 +346,7 @@ def camel_case_to_underscore(text):
         else:
             underscore.append(l[i])
 
+
     last = l[len(l) - 1]
     if last.startswith('_'):
         last = last[1:]
@@ -349,7 +368,7 @@ def generate_class(namespace, version, types, method_code):
     # type: (str,[AbapTypes],[str]) -> AbapClass
 
     class_name = file_name_to_class_name('CL_', namespace, version)
-    f = open('output/ ' + class_name + '.abap', 'w')
+    f = open('output/' + version + '/' + class_name + '.abap', 'w')
 
     private_section_builder = AbapClassSectionBuilder().create_private_session()
     for tp in types:
@@ -468,10 +487,41 @@ def build_method_type_check_code():
     return code
 
 
+def generate_field_descr_file(data_structure, evt_name, version, field_descr_set=None):
+    # type: (DataStructure,str,str,set) -> None
+
+    first_iter = False
+    if field_descr_set is None:
+        file_name = class_name_map[evt_name] + '_field_drescr'
+        file_obj = open('output/' + version + '/' + file_name + '.csv', 'w')
+        first_iter = True
+        field_descr_set = set()
+
+    if data_structure.xml_type == 'A' or data_structure.xml_type == 'E':
+        file_line = version + ';' + class_name_map[evt_name] + ';' \
+                    + data_structure.xml_name + ';' \
+                    + data_structure.var_name + ';' \
+                    + data_structure.documentation + '\n'
+        file_line = file_line.encode('cp1252')
+        file_line = ' '.join(file_line.split())
+        file_line.replace('\n', ' ')
+        file_line = file_line.lstrip()
+        file_line = file_line.rstrip()
+        field_descr_set.add(file_line)
+    else:
+        for ds in data_structure.get_children_nodes():
+            generate_field_descr_file(ds, evt_name, version, field_descr_set)
+
+    if first_iter is True:
+        for s in field_descr_set:
+            file_obj.write(s)
+            file_obj.write('\n')
+
+
 def main():
     init_class_name_dict()
 
-    path = 'XSD/1.1.01/'
+    path = 'XSD/nfse/'
     files = [path + f for f in listdir(path) if isfile(join(path, f))][:-1]
 
     for f in files:
@@ -487,6 +537,8 @@ def main():
         obj_list = ds.gen_local_types()
 
         cls = generate_class(evt_name, version, obj_list, method)
+
+        generate_field_descr_file(ds, evt_name, version)
 
 
 def main2():
